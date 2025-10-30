@@ -8,21 +8,27 @@ import game.enums.EventType;
 
 public class Archer extends Hero {
     public Archer(String name) {
-        super(name, 100, 80, 28);
+        super(name, 110, 70, 30);
         setAttackStrategy(new RangedAttack());
         setDefenseStrategy(new DodgeDefense());
     }
 
     @Override
     public void useUltimateAbility(Hero target) {
-        if (getMana() < 40) return;
+        if (getMana() < 35) {
+            notifyObservers(new GameEvent(
+                    EventType.ATTACK, this, target,
+                    getName() + " пытается сделать снайперский выстрел, но маны недостаточно!", 0
+            ));
+            return;
+        }
 
-        useMana(40);
-        int damage = (int)(getAttackPower() * 2.5); // Высокий урон, игнорирующий защиту
+        useMana(35);
+        int damage = (int)(getAttackPower() * 2.8);
 
         notifyObservers(new GameEvent(
                 EventType.ULTIMATE_USED, this, target,
-                getName() + " использует СНАЙПЕРСКИЙ ВЫСТРЕЛ! Наносит сокрушительный урон " + damage
+                getName() + " делает СНАЙПЕРСКИЙ ВЫСТРЕЛ! Наносит " + damage + " урона"
         ));
 
         target.receiveDamage(damage);

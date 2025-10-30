@@ -6,17 +6,17 @@ public class MagicAttack implements AttackStrategy {
     @Override
     public void execute(Hero attacker, Hero target) {
         if (attacker.getMana() < getManaCost()) {
-            String description = String.format("%s пытается использовать магию, но не хватает маны!",
+            String description = String.format("%s пытается читать заклинание, но не хватает маны!",
                     attacker.getName());
             notifyAttack(attacker, target, description, 0);
             return;
         }
 
         attacker.useMana(getManaCost());
-        int baseDamage = (int)(attacker.getAttackPower() * 1.5);
+        int baseDamage = (int)(attacker.getAttackPower() * 1.4);
         int finalDamage = target.getActiveDefense().mitigateDamage(baseDamage);
 
-        String description = String.format("%s бросает магическую стрелу в %s",
+        String description = String.format("%s бросает магический снаряд в %s",
                 attacker.getName(), target.getName());
 
         notifyAttack(attacker, target, description, finalDamage);
@@ -30,6 +30,6 @@ public class MagicAttack implements AttackStrategy {
 
     @Override
     public int getManaCost() {
-        return 15;
+        return 12;
     }
 }

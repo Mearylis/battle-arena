@@ -7,36 +7,34 @@ import game.core.events.GameEvent;
 import game.enums.EventType;
 
 public class Warrior extends Hero {
-    private boolean hasStunned = false;
-
     public Warrior(String name) {
-        super(name, 150, 50, 25);
+        super(name, 160, 40, 28);
         setAttackStrategy(new MeleeAttack());
         setDefenseStrategy(new ShieldBlock());
     }
 
     @Override
     public void useUltimateAbility(Hero target) {
-        if (getMana() < 30) return;
+        if (getMana() < 30) {
+            notifyObservers(new GameEvent(
+                    EventType.ATTACK, this, target,
+                    getName() + " пытается использовать щитовой удар, но маны недостаточно!", 0
+            ));
+            return;
+        }
 
         useMana(30);
-        int damage = (int)(getAttackPower() * 1.8);
+        int damage = (int)(getAttackPower() * 2.0);
         target.receiveDamage(damage);
-
-        hasStunned = true;
 
         notifyObservers(new GameEvent(
                 EventType.ULTIMATE_USED, this, target,
-                getName() + " использует ЩИТОВОЙ УДАР! Оглушает противника и наносит " + damage + " урона"
+                getName() + " использует МОЩНЫЙ ЩИТОВОЙ УДАР! Наносит " + damage + " урона"
         ));
     }
 
     @Override
     public String getDescription() {
-        return "Воин - мастер ближнего боя с высокой защитой";
-    }
-
-    public boolean hasStunned() {
-        return hasStunned;
+        return "Воин - сильный боец ближнего боя с высокой защитой";
     }
 }

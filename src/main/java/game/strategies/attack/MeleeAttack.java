@@ -8,7 +8,7 @@ public class MeleeAttack implements AttackStrategy {
         int baseDamage = attacker.getAttackPower();
         int finalDamage = target.getActiveDefense().mitigateDamage(baseDamage);
 
-        String description = String.format("%s наносит ближнюю атаку по %s",
+        String description = String.format("%s наносит удар мечом по %s",
                 attacker.getName(), target.getName());
 
         notifyAttack(attacker, target, description, finalDamage);
@@ -17,7 +17,7 @@ public class MeleeAttack implements AttackStrategy {
 
     @Override
     public String getDescription() {
-        return "Ближняя атака";
+        return "Ближний бой";
     }
 
     @Override

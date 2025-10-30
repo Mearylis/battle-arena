@@ -1,8 +1,7 @@
 package game.core.events;
 
-
-import game.enums.EventType;
 import game.core.Hero;
+import game.enums.EventType;
 
 public class GameEvent {
     private final EventType eventType;
@@ -23,7 +22,6 @@ public class GameEvent {
         this.value = value;
     }
 
-    // Getters
     public EventType getEventType() { return eventType; }
     public Hero getSource() { return source; }
     public Hero getTarget() { return target; }

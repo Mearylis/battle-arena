@@ -4,6 +4,7 @@ import game.observers.*;
 import game.factories.HeroFactory;
 import game.decorators.FireEnchantment;
 import game.decorators.StoneSkinBlessing;
+import game.decorators.PoisonEffect;
 import game.strategies.defense.MagicBarrier;
 import game.strategies.defense.ShieldBlock;
 import game.strategies.defense.DodgeDefense;
@@ -20,6 +21,7 @@ public class GameManager {
     private Scanner scanner;
     private List<GameObserver> globalObservers;
     private StatisticsTracker statisticsTracker;
+    private Hero currentPlayer;
 
     public GameManager() {
         this.scanner = new Scanner(System.in);
@@ -40,33 +42,33 @@ public class GameManager {
     }
 
     public void startBattleSequence() {
-        Hero player = selectPlayerHero();
+        currentPlayer = selectPlayerHero();
         int battlesWon = 0;
 
-        System.out.println("\nВаш герой: " + player.getDescription());
+        System.out.println("\nВаш герой: " + currentPlayer.getDescription());
         System.out.println("Начинаем серию битв!\n");
 
         for (int battleNum = 1; battleNum <= 3; battleNum++) {
             Hero ai = generateRandomAI();
 
-            System.out.println("Битва " + battleNum + " из 3");
+            System.out.println("⚔️  Битва " + battleNum + " из 3");
             System.out.println("Противник: " + ai.getDescription());
 
-            // Применяем баффы после каждой победы
             if (battlesWon > 0) {
-                applyVictoryBuff(player, battlesWon);
+                applyVictoryBuff(battlesWon);
             }
 
-            boolean playerWon = executeBattle(player, ai);
+            boolean playerWon = executeBattle(currentPlayer, ai);
 
             if (playerWon) {
                 battlesWon++;
                 System.out.println("🎉 Вы победили в битве " + battleNum + "!");
 
-                // Восстановление после боя
-                player.heal(30);
-                player.restoreMana(25);
-                System.out.printf("💚 Восстановлено: 30 здоровья, 25 маны%n");
+                currentPlayer.heal(40);
+                currentPlayer.restoreMana(30);
+                System.out.printf("💚 Восстановлено: 40 здоровья, 30 маны%n");
+                System.out.printf("❤️  Текущее здоровье: %d/%d%n", currentPlayer.getHealth(), currentPlayer.getMaxHealth());
+                System.out.printf("🔷 Текущая мана: %d/%d%n", currentPlayer.getMana(), currentPlayer.getMaxMana());
             } else {
                 System.out.println("💥 Вы проиграли битву " + battleNum);
                 break;
@@ -75,6 +77,7 @@ public class GameManager {
             if (battleNum < 3) {
                 System.out.println("\n" + "─".repeat(40));
                 System.out.println("Приготовьтесь к следующей битве...");
+                waitForEnter();
             }
         }
 
@@ -104,13 +107,16 @@ public class GameManager {
             }
         }
 
+        scanner.nextLine();
         System.out.print("Введите имя вашего героя: ");
-        String name = scanner.next();
+        String name = scanner.nextLine().trim();
+        if (name.isEmpty()) {
+            name = "Безымянный";
+        }
 
         HeroType[] types = {HeroType.WARRIOR, HeroType.MAGE, HeroType.ARCHER};
         Hero player = HeroFactory.createHero(types[choice - 1], name);
 
-        // Регистрируем глобальных наблюдателей для игрока
         globalObservers.forEach(player::registerObserver);
 
         return player;
@@ -119,7 +125,7 @@ public class GameManager {
     private Hero generateRandomAI() {
         HeroType[] types = HeroType.values();
         HeroType randomType = types[new Random().nextInt(types.length)];
-        String[] names = {"Гаррош", "Джайна", "Сильвана", "Тралл", "Артас"};
+        String[] names = {"Гаррош", "Джайна", "Сильвана", "Тралл", "Артас", "Иллидан", "Утер"};
         String randomName = names[new Random().nextInt(names.length)];
 
         Hero ai = HeroFactory.createHero(randomType, randomName);
@@ -129,7 +135,6 @@ public class GameManager {
     }
 
     private boolean executeBattle(Hero player, Hero ai) {
-        // Уведомляем о начале битвы
         globalObservers.forEach(observer ->
                 observer.onEvent(new GameEvent(
                         EventType.BATTLE_START, player, ai, "Начало битвы"
@@ -137,14 +142,13 @@ public class GameManager {
 
         int round = 1;
 
-        while (player.isAlive() && ai.isAlive() && round <= 20) {
+        while (player.isAlive() && ai.isAlive() && round <= 25) {
             System.out.printf("\n--- Раунд %d ---%n", round);
+            displayBattleStatus(player, ai);
 
-            // Ход игрока
             playerTurn(player, ai);
             if (!ai.isAlive()) break;
 
-            // Ход AI
             aiTurn(ai, player);
             if (!player.isAlive()) break;
 
@@ -153,7 +157,6 @@ public class GameManager {
 
         Hero winner = player.isAlive() ? player : ai;
 
-        // Уведомляем о конце битвы
         globalObservers.forEach(observer ->
                 observer.onEvent(new GameEvent(
                         EventType.BATTLE_END, winner, null, "Конец битвы"
@@ -162,14 +165,25 @@ public class GameManager {
         return player.isAlive();
     }
 
+    private void displayBattleStatus(Hero player, Hero ai) {
+        System.out.printf("\n❤️  %s: %d/%d | 🔷 Мана: %d/%d%n",
+                player.getName(), player.getHealth(), player.getMaxHealth(),
+                player.getMana(), player.getMaxMana());
+        System.out.printf("❤️  %s: %d/%d | 🔷 Мана: %d/%d%n",
+                ai.getName(), ai.getHealth(), ai.getMaxHealth(),
+                ai.getMana(), ai.getMaxMana());
+    }
+
     private void playerTurn(Hero player, Hero ai) {
-        System.out.println("\nВаш ход:");
+        System.out.println("\n🎲 Ваш ход:");
         System.out.println("1. Обычная атака");
         System.out.println("2. Сменить тактику атаки");
         System.out.println("3. Сменить тактику защиты");
         System.out.println("4. Ультимейт способность");
-        System.out.printf("Здоровье: %d/%d, Мана: %d/%d%n",
-                player.getHealth(), player.getMaxHealth(), player.getMana(), player.getMaxMana());
+        System.out.printf("❤️  Здоровье: %d/%d | 🔷 Мана: %d/%d | 💪 Сила: %d%n",
+                player.getHealth(), player.getMaxHealth(),
+                player.getMana(), player.getMaxMana(),
+                player.getAttackPower());
 
         int choice;
         while (true) {
@@ -198,32 +212,71 @@ public class GameManager {
                 player.useUltimateAbility(ai);
                 break;
         }
+
+        waitForEnter();
     }
 
     private void aiTurn(Hero ai, Hero player) {
-        System.out.println("\nХод противника:");
+        System.out.println("\n🤖 Ход противника:");
 
-        // AI логика
-        if (ai.getMana() >= 40 && Math.random() < 0.3) {
+        double random = Math.random();
+
+        if (ai.getMana() >= getUltimateCost(ai) && random < 0.3) {
             ai.useUltimateAbility(player);
-        } else if (ai.getHealth() < ai.getMaxHealth() * 0.3 && Math.random() < 0.5) {
-            // Меняет защиту при низком здоровье
-            ai.setDefenseStrategy(new ShieldBlock());
+        }
+        else if (ai.getHealth() < ai.getMaxHealth() * 0.3 && random < 0.25) {
+            changeAIStrategy(ai, player);
             ai.performAttack(player);
-        } else if (ai.getMana() < 20 && ai.getMana() > 0) {
-            // Герой с маной меняет тактику при низкой мане
-            ai.setDefenseStrategy(new MagicBarrier());
+        }
+        else if (ai.getMana() < 20 && random < 0.2) {
+            changeAIStrategy(ai, player);
             ai.performAttack(player);
-        } else {
+        }
+        else if (ai instanceof game.heroes.Mage && random < 0.15 && ai.getMana() > 25) {
+            applyPoisonToPlayer(player);
+            ai.useMana(25);
+        }
+        else {
             ai.performAttack(player);
+        }
+
+        waitForEnter();
+    }
+
+    private int getUltimateCost(Hero hero) {
+        if (hero instanceof game.heroes.Warrior) return 30;
+        if (hero instanceof game.heroes.Mage) return 60;
+        if (hero instanceof game.heroes.Archer) return 35;
+        return 40;
+    }
+
+    private void changeAIStrategy(Hero ai, Hero player) {
+        if (ai.getHealth() < ai.getMaxHealth() * 0.3) {
+            if (ai instanceof game.heroes.Mage) {
+                ai.setDefenseStrategy(new MagicBarrier());
+            } else {
+                ai.setDefenseStrategy(new ShieldBlock());
+            }
+        } else if (ai.getMana() < 20) {
+            ai.setAttackStrategy(new MeleeAttack());
         }
     }
 
+    private void applyPoisonToPlayer(Hero player) {
+        System.out.println("☠️  Маг противника применяет яд!");
+        currentPlayer = new PoisonEffect(player);
+
+        player.notifyObservers(new GameEvent(
+                EventType.POISON_APPLIED, player, null,
+                player.getName() + " отравлен магическим ядом!"
+        ));
+    }
+
     private void changeAttackStrategy(Hero hero) {
-        System.out.println("\nВыберите тактику атаки:");
+        System.out.println("\n🎯 Выберите тактику атаки:");
         System.out.println("1. Ближний бой - надежно, не требует маны");
         System.out.println("2. Дальний бой - высокий урон, шанс крита");
-        System.out.println("3. Магическая атака - самый высокий урон, требует маны");
+        System.out.println("3. Магическая атака - мощный урон, требует маны");
 
         int choice;
         while (true) {
@@ -252,7 +305,7 @@ public class GameManager {
     }
 
     private void changeDefenseStrategy(Hero hero) {
-        System.out.println("\nВыберите тактику защиты:");
+        System.out.println("\n🛡️  Выберите тактику защиты:");
         System.out.println("1. Щит - надежно блокирует урон");
         System.out.println("2. Уклонение - шанс полностью избежать урона");
         System.out.println("3. Магический барьер - лучшая защита от магии");
@@ -283,17 +336,28 @@ public class GameManager {
         }
     }
 
-    private void applyVictoryBuff(Hero hero, int battlesWon) {
+    private void applyVictoryBuff(int battlesWon) {
         System.out.println("\n🎁 За победу вы получаете усиление!");
 
+        Hero newPlayer = currentPlayer;
+
         if (battlesWon == 1) {
-            System.out.println("Огненное зачарование: атаки наносят дополнительный урон");
-
-            Hero decorated = new FireEnchantment(hero);
-
+            System.out.println("🔥 Огненное зачарование: атаки наносят дополнительный урон");
+            newPlayer = new FireEnchantment(currentPlayer);
         } else if (battlesWon == 2) {
-            System.out.println("Благословение каменной кожи: повышена защита");
-            Hero decorated = new StoneSkinBlessing(hero);
+            System.out.println("🪨 Каменная кожа: повышена защита от урона");
+            newPlayer = new StoneSkinBlessing(currentPlayer);
         }
+
+        if (newPlayer != currentPlayer) {
+            currentPlayer = newPlayer;
+            System.out.println("✅ Усиление применено: " + currentPlayer.getDescription());
+        }
+    }
+
+    private void waitForEnter() {
+        System.out.print("Нажмите Enter чтобы продолжить...");
+        scanner.nextLine();
+        scanner.nextLine();
     }
 }

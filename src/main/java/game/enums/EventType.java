@@ -9,5 +9,9 @@ public enum EventType {
     BUFF_APPLIED,
     ULTIMATE_USED,
     BATTLE_START,
-    BATTLE_END
+    BATTLE_END,
+    TURN_START,
+    MANA_USED,
+    POISON_APPLIED,
+    BUFF_EXPIRED
 }
