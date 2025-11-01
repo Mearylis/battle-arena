@@ -1,40 +1,56 @@
 package game.observers;
 
-import game.core.events.GameEvent;
-import game.enums.EventType;
 import java.util.HashMap;
 import java.util.Map;
 
 public class StatisticsTracker implements GameObserver {
-    private Map<String, Integer> damageDealt = new HashMap<>();
+    private Map<String, Integer> damage = new HashMap<>();
     private Map<String, Integer> kills = new HashMap<>();
-    private int totalBattles = 0;
 
     @Override
-    public void onEvent(GameEvent event) {
-        String heroName = event.getSource().getName();
+    public void onEvent(String message) {
+        // Считаем урон
+        if (message.contains("получает") && message.contains("урона")) {
+            String heroName = extractHeroName(message);
+            int damageValue = extractNumber(message);
+            damage.put(heroName, damage.getOrDefault(heroName, 0) + damageValue);
+        }
 
-        switch (event.getEventType()) {
-            case DAMAGE:
-                damageDealt.merge(heroName, event.getValue(), Integer::sum);
-                break;
-            case DEATH:
-                kills.merge(heroName, 1, Integer::sum);
-                break;
-            case BATTLE_END:
-                totalBattles++;
-                break;
+        // Считаем смерти
+        if (message.contains("погиб")) {
+            String heroName = extractHeroName(message);
+            kills.put(heroName, kills.getOrDefault(heroName, 0) + 1);
         }
     }
 
-    public void printStatistics() {
+    private String extractHeroName(String message) {
+        // Простая логика извлечения имени
+        if (message.contains("получает")) {
+            return message.split(" ")[0];
+        } else if (message.contains("погиб")) {
+            return message.split(" ")[0];
+        }
+        return "Неизвестный";
+    }
+
+    private int extractNumber(String message) {
+        // Простая логика извлечения числа
+        String[] words = message.split(" ");
+        for (String word : words) {
+            try {
+                return Integer.parseInt(word);
+            } catch (NumberFormatException e) {
+                // Пропускаем нечисловые слова
+            }
+        }
+        return 0;
+    }
+
+    public void printStats() {
         System.out.println("\n📊 СТАТИСТИКА БИТВ:");
-        System.out.println("Всего битв: " + totalBattles);
         System.out.println("Нанесено урона:");
-        damageDealt.forEach((name, damage) ->
-                System.out.printf("  %s: %d%n", name, damage));
-        System.out.println("Побед:");
-        kills.forEach((name, killCount) ->
-                System.out.printf("  %s: %d%n", name, killCount));
+        damage.forEach((name, dmg) -> System.out.println("  " + name + ": " + dmg));
+        System.out.println("Победы:");
+        kills.forEach((name, killCount) -> System.out.println("  " + name + ": " + killCount));
     }
 }

@@ -2,9 +2,8 @@ package game.strategies.defense;
 
 public class MagicBarrier implements DefenseStrategy {
     @Override
-    public int mitigateDamage(int incomingDamage) {
-        int reducedDamage = (int)(incomingDamage * 0.3);
-        return reducedDamage;
+    public int reduceDamage(int damage) {
+        return (int)(damage * 0.3);
     }
 
     @Override

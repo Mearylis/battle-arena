@@ -5,14 +5,9 @@ import game.core.Hero;
 public class MeleeAttack implements AttackStrategy {
     @Override
     public void execute(Hero attacker, Hero target) {
-        int baseDamage = attacker.getAttackPower();
-        int finalDamage = target.getActiveDefense().mitigateDamage(baseDamage);
-
-        String description = String.format("%s наносит удар мечом по %s",
-                attacker.getName(), target.getName());
-
-        notifyAttack(attacker, target, description, finalDamage);
-        target.receiveDamage(finalDamage);
+        int damage = attacker.getAttackPower();
+        target.takeDamage(damage);
+        attacker.notifyWatchers(attacker.getName() + " бьет мечом " + target.getName());
     }
 
     @Override

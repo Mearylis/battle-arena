@@ -2,9 +2,8 @@ package game.strategies.defense;
 
 public class ShieldBlock implements DefenseStrategy {
     @Override
-    public int mitigateDamage(int incomingDamage) {
-        int blockedDamage = (int)(incomingDamage * 0.4);
-        return incomingDamage - blockedDamage;
+    public int reduceDamage(int damage) {
+        return damage - (int)(damage * 0.4);
     }
 
     @Override

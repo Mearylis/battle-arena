@@ -1,362 +1,318 @@
 package game.core;
 
+import game.heroes.*;
+import game.strategies.attack.*;
+import game.strategies.defense.*;
 import game.observers.*;
-import game.factories.HeroFactory;
-import game.decorators.FireEnchantment;
-import game.decorators.StoneSkinBlessing;
-import game.decorators.PoisonEffect;
-import game.strategies.defense.MagicBarrier;
-import game.strategies.defense.ShieldBlock;
-import game.strategies.defense.DodgeDefense;
-import game.strategies.attack.MeleeAttack;
-import game.strategies.attack.RangedAttack;
-import game.strategies.attack.MagicAttack;
-import game.core.events.GameEvent;
-import game.enums.EventType;
-import game.enums.HeroType;
 
 import java.util.*;
 
 public class GameManager {
     private Scanner scanner;
-    private List<GameObserver> globalObservers;
-    private StatisticsTracker statisticsTracker;
-    private Hero currentPlayer;
+    private Hero player;
+    private List<GameObserver> watchers;
+    private StatisticsTracker stats;
 
     public GameManager() {
-        this.scanner = new Scanner(System.in);
-        this.globalObservers = new ArrayList<>();
-        this.statisticsTracker = new StatisticsTracker();
-        setupObservers();
+        scanner = new Scanner(System.in);
+        watchers = new ArrayList<>();
+        watchers.add(new BattleLogger());
+        watchers.add(new GameAnnouncer());
+        stats = new StatisticsTracker();
+        watchers.add(stats);
     }
 
-    private void setupObservers() {
-        globalObservers.add(new ConsoleBattleLogger());
-        globalObservers.add(new GameAnnouncer());
-        globalObservers.add(statisticsTracker);
-    }
+    public void run() {
+        System.out.println("⚔️  Welcome to Hero Battle Arena! ⚔️");
+        System.out.println("====================================");
 
-    public void initializeGame() {
-        System.out.println("🎮 ДОБРО ПОЖАЛОВАТЬ В ARENA OF HEROES! 🎮");
-        System.out.println("=" .repeat(50));
-    }
+        player = chooseHero();
+        int wins = 0;
 
-    public void startBattleSequence() {
-        currentPlayer = selectPlayerHero();
-        int battlesWon = 0;
+        // Regular battles
+        for (int battle = 1; battle <= 3; battle++) {
+            Hero enemy = createEnemy();
+            System.out.println("\n⚔️  BATTLE " + battle + ": " + player.getName() + " vs " + enemy.getName());
 
-        System.out.println("\nВаш герой: " + currentPlayer.getDescription());
-        System.out.println("Начинаем серию битв!\n");
-
-        for (int battleNum = 1; battleNum <= 3; battleNum++) {
-            Hero ai = generateRandomAI();
-
-            System.out.println("⚔️  Битва " + battleNum + " из 3");
-            System.out.println("Противник: " + ai.getDescription());
-
-            if (battlesWon > 0) {
-                applyVictoryBuff(battlesWon);
+            // Buffs for previous wins
+            if (wins == 1) {
+                player.addFireEnchantment();
+            } else if (wins == 2) {
+                player.addStoneSkin();
             }
 
-            boolean playerWon = executeBattle(currentPlayer, ai);
+            boolean won = fight(player, enemy);
 
-            if (playerWon) {
-                battlesWon++;
-                System.out.println("🎉 Вы победили в битве " + battleNum + "!");
-
-                currentPlayer.heal(40);
-                currentPlayer.restoreMana(30);
-                System.out.printf("💚 Восстановлено: 40 здоровья, 30 маны%n");
-                System.out.printf("❤️  Текущее здоровье: %d/%d%n", currentPlayer.getHealth(), currentPlayer.getMaxHealth());
-                System.out.printf("🔷 Текущая мана: %d/%d%n", currentPlayer.getMana(), currentPlayer.getMaxMana());
+            if (won) {
+                wins++;
+                System.out.println("🎉 You won battle " + battle + "!");
+                player.heal(40);
+                player.restoreMana(30);
+                System.out.println("💚 Restored: 40 HP, 30 MP");
             } else {
-                System.out.println("💥 Вы проиграли битву " + battleNum);
+                System.out.println("💀 You lost battle " + battle);
                 break;
             }
 
-            if (battleNum < 3) {
-                System.out.println("\n" + "─".repeat(40));
-                System.out.println("Приготовьтесь к следующей битве...");
+            if (battle < 3) {
+                System.out.println("\n--- Preparing for next battle ---");
                 waitForEnter();
             }
         }
 
-        System.out.println("\n" + "⭐".repeat(50));
-        System.out.println("СЕРИЯ БИТВ ЗАВЕРШЕНА!");
-        System.out.println("Всего побед: " + battlesWon + " из 3");
+        if (wins == 3) {
+            System.out.println("\n" + "🌋".repeat(50));
+            System.out.println("🔥 ПОЯВЛЯЕТСЯ ЛЕГЕНДАРНЫЙ БОСС!");
+            System.out.println("🔥 ТЕМИРГАЛЫ ДИНМУХАММЕД!");
+            System.out.println("🌋".repeat(50));
 
-        statisticsTracker.printStatistics();
+            Hero boss = new Boss("Темиргалы Динмухаммед");
+            for (GameObserver watcher : watchers) {
+                boss.addWatcher(watcher);
+            }
+
+            boolean wonBoss = fight(player, boss);
+
+            if (wonBoss) {
+                System.out.println("\n" + "🏆".repeat(50));
+                System.out.println("🏆 ТЫ ВЫЖИЛ");
+                System.out.println("🏆 ПОБЕДИЛИ САМОГО ТЕМИРГАЛЫ ДИНМУХАММЕДА! но это не точно");
+                System.out.println("🏆".repeat(50));
+            } else {
+                System.out.println("\n💀 It is RETAKE bro(.....");
+            }
+        }
+
+        System.out.println("\n⭐ GAME OVER ⭐");
+        System.out.println("Total wins: " + wins + " out of 3");
+        stats.printStats();
     }
 
-    private Hero selectPlayerHero() {
-        System.out.println("\nВыберите своего героя:");
-        System.out.println("1. Воин - высокое здоровье, сильная защита");
-        System.out.println("2. Маг - мощные заклинания, низкая защита");
-        System.out.println("3. Лучник - меткие выстрелы, критические удары");
+    private Hero chooseHero() {
+        System.out.println("\nChoose your hero:");
+        System.out.println("1. Warrior - strong and tough");
+        System.out.println("2. Mage - powerful spells");
+        System.out.println("3. Archer - accurate shots");
+        System.out.println("4. Assassin - poisons and tricks");
 
         int choice;
         while (true) {
-            System.out.print("Ваш выбор (1-3): ");
             try {
+                System.out.print("Your choice (1-4): ");
                 choice = scanner.nextInt();
-                if (choice >= 1 && choice <= 3) break;
-                System.out.println("Пожалуйста, введите число от 1 до 3");
-            } catch (InputMismatchException e) {
-                System.out.println("Пожалуйста, введите число от 1 до 3");
+                if (choice >= 1 && choice <= 4) break;
+                System.out.println("Only 1-4!");
+            } catch (Exception e) {
+                System.out.println("Enter a number!");
                 scanner.next();
             }
         }
 
         scanner.nextLine();
-        System.out.print("Введите имя вашего героя: ");
+        System.out.print("Hero name: ");
         String name = scanner.nextLine().trim();
-        if (name.isEmpty()) {
-            name = "Безымянный";
+        if (name.isEmpty()) name = "Nameless";
+
+        Hero hero = null;
+        if (choice == 1) {
+            hero = new Warrior(name);
+        } else if (choice == 2) {
+            hero = new Mage(name);
+        } else if (choice == 3) {
+            hero = new Archer(name);
+        } else if (choice == 4) {
+            hero = new Assassin(name);
         }
 
-        HeroType[] types = {HeroType.WARRIOR, HeroType.MAGE, HeroType.ARCHER};
-        Hero player = HeroFactory.createHero(types[choice - 1], name);
+        for (GameObserver watcher : watchers) {
+            hero.addWatcher(watcher);
+        }
 
-        globalObservers.forEach(player::registerObserver);
-
-        return player;
+        return hero;
     }
 
-    private Hero generateRandomAI() {
-        HeroType[] types = HeroType.values();
-        HeroType randomType = types[new Random().nextInt(types.length)];
-        String[] names = {"Гаррош", "Джайна", "Сильвана", "Тралл", "Артас", "Иллидан", "Утер"};
-        String randomName = names[new Random().nextInt(names.length)];
+    private Hero createEnemy() {
+        String[] names = {"Garrosh", "Jaina", "Sylvanas", "Valira", "Thrall", "Arthas"};
+        String name = names[new Random().nextInt(names.length)];
 
-        Hero ai = HeroFactory.createHero(randomType, randomName);
-        globalObservers.forEach(ai::registerObserver);
+        int type = new Random().nextInt(4) + 1;
+        Hero enemy = null;
+        if (type == 1) {
+            enemy = new Warrior(name);
+        } else if (type == 2) {
+            enemy = new Mage(name);
+        } else if (type == 3) {
+            enemy = new Archer(name);
+        } else if (type == 4) {
+            enemy = new Assassin(name);
+        }
 
-        return ai;
+        for (GameObserver watcher : watchers) {
+            enemy.addWatcher(watcher);
+        }
+
+        return enemy;
     }
 
-    private boolean executeBattle(Hero player, Hero ai) {
-        globalObservers.forEach(observer ->
-                observer.onEvent(new GameEvent(
-                        EventType.BATTLE_START, player, ai, "Начало битвы"
-                )));
-
+    private boolean fight(Hero player, Hero enemy) {
         int round = 1;
 
-        while (player.isAlive() && ai.isAlive() && round <= 25) {
-            System.out.printf("\n--- Раунд %d ---%n", round);
-            displayBattleStatus(player, ai);
+        while (player.isAlive() && enemy.isAlive() && round <= 30) {
+            System.out.println("\n--- Round " + round + " ---");
+            showStatus(player, enemy);
 
-            playerTurn(player, ai);
-            if (!ai.isAlive()) break;
+            playerTurn(player, enemy);
+            if (!enemy.isAlive()) break;
 
-            aiTurn(ai, player);
+            enemyTurn(enemy, player);
             if (!player.isAlive()) break;
 
             round++;
         }
 
-        Hero winner = player.isAlive() ? player : ai;
-
-        globalObservers.forEach(observer ->
-                observer.onEvent(new GameEvent(
-                        EventType.BATTLE_END, winner, null, "Конец битвы"
-                )));
-
-        return player.isAlive();
+        boolean playerWon = player.isAlive();
+        System.out.println("\n" + (playerWon ? "🏆 VICTORY!" : "💀 DEFEAT"));
+        return playerWon;
     }
 
-    private void displayBattleStatus(Hero player, Hero ai) {
-        System.out.printf("\n❤️  %s: %d/%d | 🔷 Мана: %d/%d%n",
-                player.getName(), player.getHealth(), player.getMaxHealth(),
-                player.getMana(), player.getMaxMana());
-        System.out.printf("❤️  %s: %d/%d | 🔷 Мана: %d/%d%n",
-                ai.getName(), ai.getHealth(), ai.getMaxHealth(),
-                ai.getMana(), ai.getMaxMana());
+    private void showStatus(Hero p1, Hero p2) {
+        String p1Poison = p1.getPoisonStacks() > 0 ? " ☠️(" + p1.getPoisonStacks() + ")" : "";
+        String p2Poison = p2.getPoisonStacks() > 0 ? " ☠️(" + p2.getPoisonStacks() + ")" : "";
+
+        System.out.printf("❤️  %s: %d/%d HP | 🔷 %d/%d MP%s\n",
+                p1.getName(), p1.getHealth(), p1.getMaxHealth(), p1.getMana(), p1.getMaxMana(), p1Poison);
+        System.out.printf("❤️  %s: %d/%d HP | 🔷 %d/%d MP%s\n",
+                p2.getName(), p2.getHealth(), p2.getMaxHealth(), p2.getMana(), p2.getMaxMana(), p2Poison);
     }
 
-    private void playerTurn(Hero player, Hero ai) {
-        System.out.println("\n🎲 Ваш ход:");
-        System.out.println("1. Обычная атака");
-        System.out.println("2. Сменить тактику атаки");
-        System.out.println("3. Сменить тактику защиты");
-        System.out.println("4. Ультимейт способность");
-        System.out.printf("❤️  Здоровье: %d/%d | 🔷 Мана: %d/%d | 💪 Сила: %d%n",
+    private void playerTurn(Hero player, Hero enemy) {
+        System.out.println("\n🎲 Your turn:");
+        System.out.println("1. Attack");
+        System.out.println("2. Change attack");
+        System.out.println("3. Change defense");
+        System.out.println("4. Ultimate");
+        System.out.printf("❤️  Health: %d/%d | 🔷 Mana: %d/%d\n",
                 player.getHealth(), player.getMaxHealth(),
-                player.getMana(), player.getMaxMana(),
-                player.getAttackPower());
+                player.getMana(), player.getMaxMana());
 
         int choice;
         while (true) {
-            System.out.print("Выберите действие (1-4): ");
             try {
+                System.out.print("Choose action (1-4): ");
                 choice = scanner.nextInt();
                 if (choice >= 1 && choice <= 4) break;
-                System.out.println("Пожалуйста, введите число от 1 до 4");
-            } catch (InputMismatchException e) {
-                System.out.println("Пожалуйста, введите число от 1 до 4");
+                System.out.println("Only 1-4!");
+            } catch (Exception e) {
+                System.out.println("Enter a number!");
                 scanner.next();
             }
         }
 
-        switch (choice) {
-            case 1:
-                player.performAttack(ai);
-                break;
-            case 2:
-                changeAttackStrategy(player);
-                break;
-            case 3:
-                changeDefenseStrategy(player);
-                break;
-            case 4:
-                player.useUltimateAbility(ai);
-                break;
+        if (choice == 1) {
+            player.attack(enemy);
+        } else if (choice == 2) {
+            changeAttack(player);
+        } else if (choice == 3) {
+            changeDefense(player);
+        } else if (choice == 4) {
+            player.useUltimate(enemy);
         }
 
         waitForEnter();
     }
 
-    private void aiTurn(Hero ai, Hero player) {
-        System.out.println("\n🤖 Ход противника:");
+    private void enemyTurn(Hero enemy, Hero player) {
+        System.out.println("\n🤖 Enemy turn...");
 
-        double random = Math.random();
-
-        if (ai.getMana() >= getUltimateCost(ai) && random < 0.3) {
-            ai.useUltimateAbility(player);
-        }
-        else if (ai.getHealth() < ai.getMaxHealth() * 0.3 && random < 0.25) {
-            changeAIStrategy(ai, player);
-            ai.performAttack(player);
-        }
-        else if (ai.getMana() < 20 && random < 0.2) {
-            changeAIStrategy(ai, player);
-            ai.performAttack(player);
-        }
-        else if (ai instanceof game.heroes.Mage && random < 0.15 && ai.getMana() > 25) {
-            applyPoisonToPlayer(player);
-            ai.useMana(25);
-        }
-        else {
-            ai.performAttack(player);
+        if (enemy.getMana() >= getUltimateCost(enemy) && Math.random() < 0.3) {
+            enemy.useUltimate(player);
+        } else if (enemy.getHealth() < enemy.getMaxHealth() * 0.4 && Math.random() < 0.4) {
+            if (enemy instanceof Mage) {
+                enemy.setDefense(new MagicBarrier());
+            } else if (enemy instanceof Assassin) {
+                enemy.setDefense(new DodgeDefense());
+            } else {
+                enemy.setDefense(new ShieldBlock());
+            }
+            enemy.attack(player);
+        } else if ((enemy instanceof Mage || enemy instanceof Assassin) &&
+                Math.random() < 0.25 && enemy.getMana() > 15) {
+            player.addPoison(1);
+            enemy.useMana(15);
+        } else {
+            enemy.attack(player);
         }
 
         waitForEnter();
     }
 
     private int getUltimateCost(Hero hero) {
-        if (hero instanceof game.heroes.Warrior) return 30;
-        if (hero instanceof game.heroes.Mage) return 60;
-        if (hero instanceof game.heroes.Archer) return 35;
+        if (hero instanceof Warrior) return 30;
+        if (hero instanceof Mage) return 60;
+        if (hero instanceof Archer) return 35;
+        if (hero instanceof Assassin) return 45;
+        if (hero instanceof Boss) return 50;
         return 40;
     }
 
-    private void changeAIStrategy(Hero ai, Hero player) {
-        if (ai.getHealth() < ai.getMaxHealth() * 0.3) {
-            if (ai instanceof game.heroes.Mage) {
-                ai.setDefenseStrategy(new MagicBarrier());
-            } else {
-                ai.setDefenseStrategy(new ShieldBlock());
-            }
-        } else if (ai.getMana() < 20) {
-            ai.setAttackStrategy(new MeleeAttack());
-        }
-    }
-
-    private void applyPoisonToPlayer(Hero player) {
-        System.out.println("☠️  Маг противника применяет яд!");
-        currentPlayer = new PoisonEffect(player);
-
-        player.notifyObservers(new GameEvent(
-                EventType.POISON_APPLIED, player, null,
-                player.getName() + " отравлен магическим ядом!"
-        ));
-    }
-
-    private void changeAttackStrategy(Hero hero) {
-        System.out.println("\n🎯 Выберите тактику атаки:");
-        System.out.println("1. Ближний бой - надежно, не требует маны");
-        System.out.println("2. Дальний бой - высокий урон, шанс крита");
-        System.out.println("3. Магическая атака - мощный урон, требует маны");
+    private void changeAttack(Hero hero) {
+        System.out.println("\n🎯 Choose attack:");
+        System.out.println("1. Melee - reliable, no mana");
+        System.out.println("2. Ranged - high damage, crit chance");
+        System.out.println("3. Magic - powerful, needs mana");
 
         int choice;
         while (true) {
-            System.out.print("Ваш выбор (1-3): ");
             try {
+                System.out.print("Your choice (1-3): ");
                 choice = scanner.nextInt();
                 if (choice >= 1 && choice <= 3) break;
-                System.out.println("Пожалуйста, введите число от 1 до 3");
-            } catch (InputMismatchException e) {
-                System.out.println("Пожалуйста, введите число от 1 до 3");
+                System.out.println("Only 1-3!");
+            } catch (Exception e) {
+                System.out.println("Enter a number!");
                 scanner.next();
             }
         }
 
-        switch (choice) {
-            case 1:
-                hero.setAttackStrategy(new MeleeAttack());
-                break;
-            case 2:
-                hero.setAttackStrategy(new RangedAttack());
-                break;
-            case 3:
-                hero.setAttackStrategy(new MagicAttack());
-                break;
+        if (choice == 1) {
+            hero.setAttack(new MeleeAttack());
+        } else if (choice == 2) {
+            hero.setAttack(new RangedAttack());
+        } else if (choice == 3) {
+            hero.setAttack(new MagicAttack());
         }
     }
 
-    private void changeDefenseStrategy(Hero hero) {
-        System.out.println("\n🛡️  Выберите тактику защиты:");
-        System.out.println("1. Щит - надежно блокирует урон");
-        System.out.println("2. Уклонение - шанс полностью избежать урона");
-        System.out.println("3. Магический барьер - лучшая защита от магии");
+    private void changeDefense(Hero hero) {
+        System.out.println("\n🛡️  Choose defense:");
+        System.out.println("1. Shield - reliable damage block");
+        System.out.println("2. Dodge - chance to avoid damage");
+        System.out.println("3. Magic Barrier - best against magic");
 
         int choice;
         while (true) {
-            System.out.print("Ваш выбор (1-3): ");
             try {
+                System.out.print("Your choice (1-3): ");
                 choice = scanner.nextInt();
                 if (choice >= 1 && choice <= 3) break;
-                System.out.println("Пожалуйста, введите число от 1 до 3");
-            } catch (InputMismatchException e) {
-                System.out.println("Пожалуйста, введите число от 1 до 3");
+                System.out.println("Only 1-3!");
+            } catch (Exception e) {
+                System.out.println("Enter a number!");
                 scanner.next();
             }
         }
 
-        switch (choice) {
-            case 1:
-                hero.setDefenseStrategy(new ShieldBlock());
-                break;
-            case 2:
-                hero.setDefenseStrategy(new DodgeDefense());
-                break;
-            case 3:
-                hero.setDefenseStrategy(new MagicBarrier());
-                break;
-        }
-    }
-
-    private void applyVictoryBuff(int battlesWon) {
-        System.out.println("\n🎁 За победу вы получаете усиление!");
-
-        Hero newPlayer = currentPlayer;
-
-        if (battlesWon == 1) {
-            System.out.println("🔥 Огненное зачарование: атаки наносят дополнительный урон");
-            newPlayer = new FireEnchantment(currentPlayer);
-        } else if (battlesWon == 2) {
-            System.out.println("🪨 Каменная кожа: повышена защита от урона");
-            newPlayer = new StoneSkinBlessing(currentPlayer);
-        }
-
-        if (newPlayer != currentPlayer) {
-            currentPlayer = newPlayer;
-            System.out.println("✅ Усиление применено: " + currentPlayer.getDescription());
+        if (choice == 1) {
+            hero.setDefense(new ShieldBlock());
+        } else if (choice == 2) {
+            hero.setDefense(new DodgeDefense());
+        } else if (choice == 3) {
+            hero.setDefense(new MagicBarrier());
         }
     }
 
     private void waitForEnter() {
-        System.out.print("Нажмите Enter чтобы продолжить...");
+        System.out.print("Press Enter to continue...");
         scanner.nextLine();
         scanner.nextLine();
     }

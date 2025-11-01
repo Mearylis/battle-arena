@@ -1,6 +1,6 @@
 package game.strategies.defense;
 
 public interface DefenseStrategy {
-    int mitigateDamage(int incomingDamage);
+    int reduceDamage(int damage);
     String getDescription();
 }

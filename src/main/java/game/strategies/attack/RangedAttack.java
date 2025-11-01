@@ -5,26 +5,21 @@ import game.core.Hero;
 public class RangedAttack implements AttackStrategy {
     @Override
     public void execute(Hero attacker, Hero target) {
-        int baseDamage = (int)(attacker.getAttackPower() * 1.15);
-        int finalDamage = target.getActiveDefense().mitigateDamage(baseDamage);
+        int damage = (int)(attacker.getAttackPower() * 1.15);
 
         if (Math.random() < 0.3) {
-            finalDamage = (int)(finalDamage * 1.5);
-            String description = String.format("%s попадает точно в цель по %s!",
-                    attacker.getName(), target.getName());
-            notifyAttack(attacker, target, description, finalDamage);
+            damage = (int)(damage * 1.5);
+            attacker.notifyWatchers(attacker.getName() + " попадает точно в цель! " + target.getName());
         } else {
-            String description = String.format("%s стреляет из лука в %s",
-                    attacker.getName(), target.getName());
-            notifyAttack(attacker, target, description, finalDamage);
+            attacker.notifyWatchers(attacker.getName() + " стреляет в " + target.getName());
         }
 
-        target.receiveDamage(finalDamage);
+        target.takeDamage(damage);
     }
 
     @Override
     public String getDescription() {
-        return "Стрельба из лука";
+        return "Дальний бой";
     }
 
     @Override

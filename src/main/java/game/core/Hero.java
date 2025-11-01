@@ -1,13 +1,11 @@
 package game.core;
 
 import game.observers.GameObserver;
-import game.core.events.GameEvent;
 import game.strategies.attack.AttackStrategy;
 import game.strategies.defense.DefenseStrategy;
 import game.strategies.defense.ShieldBlock;
-import game.enums.EventType;
-import java.util.ArrayList;
-import java.util.List;
+
+import java.util.*;
 
 public abstract class Hero {
     private String name;
@@ -16,11 +14,17 @@ public abstract class Hero {
     private int mana;
     private int maxMana;
     private int attackPower;
-    private boolean isAlive;
+    private boolean alive;
 
-    private AttackStrategy activeAttack;
-    private DefenseStrategy activeDefense;
-    private List<GameObserver> observers;
+    private AttackStrategy attack;
+    private DefenseStrategy defense;
+    private List<GameObserver> watchers;
+
+    // Effects
+    private boolean hasFireEnchantment = false;
+    private boolean hasStoneSkin = false;
+    private int poisonStacks = 0;
+    private int poisonTurns = 0;
 
     public Hero(String name, int health, int mana, int attackPower) {
         this.name = name;
@@ -29,135 +33,146 @@ public abstract class Hero {
         this.maxMana = mana;
         this.mana = mana;
         this.attackPower = attackPower;
-        this.isAlive = true;
-        this.observers = new ArrayList<>();
-        this.activeDefense = new ShieldBlock();
+        this.alive = true;
+        this.watchers = new ArrayList<>();
+        this.defense = new ShieldBlock();
     }
 
-    public void performAttack(Hero target) {
-        if (!isAlive || !target.isAlive()) return;
+    public void attack(Hero target) {
+        if (!alive || !target.alive) return;
 
-        if (mana >= activeAttack.getManaCost()) {
-            if (activeAttack.getManaCost() > 0) {
-                useMana(activeAttack.getManaCost());
+        if (mana >= attack.getManaCost()) {
+            if (attack.getManaCost() > 0) {
+                useMana(attack.getManaCost());
             }
-            activeAttack.execute(this, target);
+            attack.execute(this, target);
+
+            // Fire enchantment effect
+            if (hasFireEnchantment) {
+                int fireDamage = 8;
+                target.takeDamage(fireDamage);
+                notifyWatchers("🔥 Fire enchantment deals " + fireDamage + " extra damage");
+            }
         } else {
-            notifyObservers(new GameEvent(
-                    EventType.ATTACK, this, target,
-                    name + " пытается атаковать, но не хватает маны!", 0
-            ));
+            notifyWatchers(name + " cannot attack - not enough mana!");
         }
+
+        // Apply poison damage
+        applyPoisonDamage();
     }
 
-    public void receiveDamage(int damage) {
-        if (!isAlive) return;
+    public void takeDamage(int damage) {
+        if (!alive) return;
+
+        // Stone skin effect
+        if (hasStoneSkin) {
+            damage = Math.max(0, damage - 15);
+        }
 
         health = Math.max(0, health - damage);
-
-        notifyObservers(new GameEvent(
-                EventType.DAMAGE, this, this,
-                name + " получает урон", damage
-        ));
+        notifyWatchers(name + " takes " + damage + " damage");
 
         if (health <= 0) {
-            isAlive = false;
-            notifyObservers(new GameEvent(
-                    EventType.DEATH, this, this, name + " пал в бою"
-            ));
+            alive = false;
+            notifyWatchers(name + " has fallen!");
         }
+    }
+
+    private void applyPoisonDamage() {
+        if (poisonStacks > 0 && poisonTurns > 0) {
+            int poisonDamage = poisonStacks * 4;
+            takeDamage(poisonDamage);
+            poisonTurns--;
+            notifyWatchers("☠️ Poison deals " + poisonDamage + " damage to " + name + " (" + poisonTurns + " turns left)");
+
+            if (poisonTurns == 0) {
+                poisonStacks = 0;
+                notifyWatchers("💨 Poison wears off from " + name);
+            }
+        }
+    }
+
+    public void addPoison(int stacks) {
+        poisonStacks = Math.min(poisonStacks + stacks, 3);
+        poisonTurns = 4;
+        notifyWatchers("☠️ " + name + " is poisoned! Stacks: " + poisonStacks);
+    }
+
+    public void addFireEnchantment() {
+        hasFireEnchantment = true;
+        notifyWatchers("🔥 " + name + " gains fire enchantment!");
+    }
+
+    public void addStoneSkin() {
+        hasStoneSkin = true;
+        notifyWatchers("🪨 " + name + " gains stone skin!");
     }
 
     public void heal(int amount) {
-        if (!isAlive) return;
+        if (!alive) return;
 
-        int oldHealth = health;
+        int old = health;
         health = Math.min(maxHealth, health + amount);
-        int actualHeal = health - oldHealth;
+        int healed = health - old;
 
-        if (actualHeal > 0) {
-            notifyObservers(new GameEvent(
-                    EventType.HEAL, this, this,
-                    name + " лечит раны", actualHeal
-            ));
+        if (healed > 0) {
+            notifyWatchers(name + " heals " + healed + " HP");
         }
     }
 
     public void useMana(int amount) {
         mana = Math.max(0, mana - amount);
         if (amount > 0) {
-            notifyObservers(new GameEvent(
-                    EventType.MANA_USED, this, this, "", amount
-            ));
+            notifyWatchers(name + " uses " + amount + " mana");
         }
     }
 
     public void restoreMana(int amount) {
-        int oldMana = mana;
+        int old = mana;
         mana = Math.min(maxMana, mana + amount);
-        int actualRestore = mana - oldMana;
+        int restored = mana - old;
 
-        if (actualRestore > 0) {
-            notifyObservers(new GameEvent(
-                    EventType.HEAL, this, this,
-                    name + " восстанавливает ману", actualRestore
-            ));
+        if (restored > 0) {
+            notifyWatchers(name + " restores " + restored + " mana");
         }
     }
 
-    public void setAttackStrategy(AttackStrategy strategy) {
-        this.activeAttack = strategy;
-        notifyObservers(new GameEvent(
-                EventType.STRATEGY_CHANGE, this, null,
-                name + " меняет стиль атаки на: " + strategy.getDescription()
-        ));
+    public void setAttack(AttackStrategy newAttack) {
+        this.attack = newAttack;
+        notifyWatchers(name + " changes attack to: " + newAttack.getDescription());
     }
 
-    public void setDefenseStrategy(DefenseStrategy strategy) {
-        this.activeDefense = strategy;
-        notifyObservers(new GameEvent(
-                EventType.STRATEGY_CHANGE, this, null,
-                name + " меняет стиль защиты на: " + strategy.getDescription()
-        ));
+    public void setDefense(DefenseStrategy newDefense) {
+        this.defense = newDefense;
+        notifyWatchers(name + " changes defense to: " + newDefense.getDescription());
     }
 
-    public void registerObserver(GameObserver observer) {
-        observers.add(observer);
+    public void addWatcher(GameObserver watcher) {
+        watchers.add(watcher);
     }
 
-    public void removeObserver(GameObserver observer) {
-        observers.remove(observer);
+    public void removeWatcher(GameObserver watcher) {
+        watchers.remove(watcher);
     }
 
-    public void notifyObservers(GameEvent event) {
-        for (GameObserver observer : observers) {
-            observer.onEvent(event);
+    public void notifyWatchers(String message) {
+        for (GameObserver watcher : watchers) {
+            watcher.onEvent(message);
         }
     }
 
-    public abstract void useUltimateAbility(Hero target);
+    public abstract void useUltimate(Hero target);
     public abstract String getDescription();
 
-    protected void setHealth(int health) {
-        this.health = health;
-    }
-
-    protected void setMana(int mana) {
-        this.mana = mana;
-    }
-
-    protected void setAlive(boolean alive) {
-        this.isAlive = alive;
-    }
-
+    // Getters
     public String getName() { return name; }
     public int getHealth() { return health; }
     public int getMaxHealth() { return maxHealth; }
     public int getMana() { return mana; }
     public int getMaxMana() { return maxMana; }
     public int getAttackPower() { return attackPower; }
-    public boolean isAlive() { return isAlive; }
-    public AttackStrategy getActiveAttack() { return activeAttack; }
-    public DefenseStrategy getActiveDefense() { return activeDefense; }
-    public List<GameObserver> getObservers() { return observers; }
+    public boolean isAlive() { return alive; }
+    public AttackStrategy getAttack() { return attack; }
+    public DefenseStrategy getDefense() { return defense; }
+    public int getPoisonStacks() { return poisonStacks; }
 }

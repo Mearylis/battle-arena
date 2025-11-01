@@ -3,40 +3,31 @@ package game.heroes;
 import game.core.Hero;
 import game.strategies.attack.MagicAttack;
 import game.strategies.defense.MagicBarrier;
-import game.core.events.GameEvent;
-import game.enums.EventType;
 
 public class Mage extends Hero {
     public Mage(String name) {
         super(name, 85, 150, 32);
-        setAttackStrategy(new MagicAttack());
-        setDefenseStrategy(new MagicBarrier());
+        setAttack(new MagicAttack());
+        setDefense(new MagicBarrier());
     }
 
     @Override
-    public void useUltimateAbility(Hero target) {
+    public void useUltimate(Hero target) {
         if (getMana() < 60) {
-            notifyObservers(new GameEvent(
-                    EventType.ATTACK, this, target,
-                    getName() + " пытается призвать молнию, но маны недостаточно!", 0
-            ));
+            notifyWatchers(getName() + " пытается призвать молнию, но нет маны!");
             return;
         }
 
         useMana(60);
         int damage = (int)(getAttackPower() * 2.2);
-        target.receiveDamage(damage);
-
+        target.takeDamage(damage);
         restoreMana(25);
 
-        notifyObservers(new GameEvent(
-                EventType.ULTIMATE_USED, this, target,
-                getName() + " призывает УДАР МОЛНИИ! Наносит " + damage + " урона и восстанавливает ману"
-        ));
+        notifyWatchers(getName() + " призывает МОЛНИЮ! Наносит " + damage + " урона");
     }
 
     @Override
     public String getDescription() {
-        return "Маг - могущественный заклинатель с низкой защитой";
+        return "Маг - могущественный заклинатель";
     }
 }
